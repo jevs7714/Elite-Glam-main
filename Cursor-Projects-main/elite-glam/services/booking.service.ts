@@ -126,5 +126,10 @@ export const bookingService = {
       console.error('Error cancelling booking:', error);
       throw error;
     }
+  },
+
+  async getMyBookings(): Promise<Booking[]> {
+    const response = await api.get('/bookings/my-bookings');
+    return response.data;
   }
 }; 

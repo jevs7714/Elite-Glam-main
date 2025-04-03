@@ -56,7 +56,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => router.push('/store/orders')}
+            onPress={() => router.push('/(store)/orders')}
           >
             <MaterialIcons name="list-alt" size={32} color="#7E57C2" />
             <Text style={styles.actionText}>View Orders</Text>

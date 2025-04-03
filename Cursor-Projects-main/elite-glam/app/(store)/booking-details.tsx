@@ -52,20 +52,6 @@ export default function BookingDetailsScreen() {
     }
   };
 
-  const handleStatusUpdate = async (newStatus: Booking['status']) => {
-    try {
-      await bookingService.updateBookingStatus(id as string, newStatus);
-      // Refresh the booking details
-      fetchBookingDetails();
-    } catch (error: any) {
-      console.error('Error updating booking status:', error);
-      Alert.alert(
-        'Error',
-        'Failed to update booking status. Please try again.'
-      );
-    }
-  };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -150,25 +136,6 @@ export default function BookingDetailsScreen() {
             <MaterialIcons name="notes" size={20} color="#666" />
             <Text style={styles.notesText}>{booking.notes}</Text>
           </View>
-        </View>
-      )}
-
-      {booking.status === 'pending' && (
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.confirmButton]}
-            onPress={() => handleStatusUpdate('confirmed')}
-          >
-            <MaterialIcons name="check-circle" size={24} color="white" />
-            <Text style={styles.actionButtonText}>Confirm Booking</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.cancelButton]}
-            onPress={() => handleStatusUpdate('cancelled')}
-          >
-            <MaterialIcons name="cancel" size={24} color="white" />
-            <Text style={styles.actionButtonText}>Cancel Booking</Text>
-          </TouchableOpacity>
         </View>
       )}
     </ScrollView>
@@ -263,29 +230,6 @@ const styles = StyleSheet.create({
     color: '#333',
     marginLeft: 12,
     flex: 1,
-  },
-  actionButtons: {
-    padding: 16,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  confirmButton: {
-    backgroundColor: '#4CAF50',
-  },
-  cancelButton: {
-    backgroundColor: '#F44336',
-  },
-  actionButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
   },
   loadingContainer: {
     flex: 1,

@@ -9,12 +9,10 @@ import {
   TextInput,
   Alert,
   Platform,
-  RefreshControl,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { bookingService, Booking } from '../../services/booking.service';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STATUS_COLORS = {
   pending: '#FFA500',
@@ -32,36 +30,23 @@ const STATUS_ICONS = {
 
 type BookingStatus = keyof typeof STATUS_COLORS;
 
-export default function BookingStatusScreen() {
-  const [bookings, setBookings] = useState<Booking[]>([]);
+export default function OrdersScreen() {
+  const [orders, setOrders] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<BookingStatus | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchBookings = async () => {
+  const fetchOrders = async () => {
     try {
-      console.log('Starting to fetch bookings...');
       const data = await bookingService.getAllBookings();
-      console.log('Received bookings data:', data);
-      setBookings(data);
+      setOrders(data);
     } catch (error: any) {
-      console.error('Error in fetchBookings:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-      
-      if (error.response?.status === 401) {
-        console.log('Received 401 error, redirecting to login');
-        await AsyncStorage.removeItem('userToken');
-        router.replace('/(auth)/login');
-      } else {
-        Alert.alert(
-          'Error',
-          'Failed to load your bookings. Please try again later.'
-        );
-      }
+      console.error('Error fetching orders:', error);
+      Alert.alert(
+        'Error',
+        'Failed to load orders. Please try again later.'
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -69,18 +54,25 @@ export default function BookingStatusScreen() {
   };
 
   useEffect(() => {
-    fetchBookings();
+    fetchOrders();
   }, []);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchBookings();
+  const handleStatusUpdate = async (orderId: string, newStatus: BookingStatus) => {
+    try {
+      await bookingService.updateBookingStatus(orderId, newStatus);
+      Alert.alert('Success', 'Order status updated successfully');
+      fetchOrders(); // Refresh the list
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      Alert.alert('Error', 'Failed to update order status');
+    }
   };
 
-  const filteredBookings = bookings.filter(booking => {
-    const matchesSearch = booking.serviceName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        booking.id.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = selectedStatus ? booking.status === selectedStatus : true;
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        order.serviceName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        order.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = selectedStatus ? order.status === selectedStatus : true;
     return matchesSearch && matchesStatus;
   });
 
@@ -114,58 +106,84 @@ export default function BookingStatusScreen() {
     </View>
   );
 
-  const renderBookingItem = ({ item: booking }: { item: Booking }) => (
-    <TouchableOpacity
-      style={styles.bookingCard}
-      onPress={() => {
-        router.push({
-          pathname: '/booking-details',
-          params: { id: booking.id }
-        });
-      }}
-    >
-      <View style={styles.bookingHeader}>
+  const renderOrderItem = ({ item: order }: { item: Booking }) => (
+    <View style={styles.orderCard}>
+      <View style={styles.orderHeader}>
         <View>
-          <Text style={styles.orderNumber}>Booking #{booking.id.slice(-6)}</Text>
-          <Text style={styles.serviceName}>{booking.serviceName}</Text>
+          <Text style={styles.orderNumber}>Order #{order.id.slice(-6)}</Text>
+          <Text style={styles.customerName}>{order.customerName}</Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[booking.status] }]}>
-          <MaterialIcons name={STATUS_ICONS[booking.status]} size={16} color="white" />
+        <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[order.status] }]}>
+          <MaterialIcons name={STATUS_ICONS[order.status]} size={16} color="white" />
           <Text style={styles.statusText}>
-            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+            {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
           </Text>
         </View>
       </View>
 
-      <View style={styles.bookingDetails}>
+      <View style={styles.orderDetails}>
+        <View style={styles.detailRow}>
+          <MaterialIcons name="spa" size={16} color="#666" />
+          <Text style={styles.detailText}>{order.serviceName}</Text>
+        </View>
         <View style={styles.detailRow}>
           <MaterialIcons name="event" size={16} color="#666" />
-          <Text style={styles.detailText}>{booking.date}</Text>
+          <Text style={styles.detailText}>{order.date}</Text>
         </View>
         <View style={styles.detailRow}>
           <MaterialIcons name="access-time" size={16} color="#666" />
-          <Text style={styles.detailText}>{booking.time}</Text>
+          <Text style={styles.detailText}>{order.time}</Text>
         </View>
         <View style={styles.detailRow}>
           <MaterialIcons name="attach-money" size={16} color="#666" />
-          <Text style={styles.detailText}>₱{booking.price.toLocaleString()}</Text>
+          <Text style={styles.detailText}>₱{order.price.toLocaleString()}</Text>
         </View>
       </View>
 
-      {booking.notes && (
+      {order.notes && (
         <View style={styles.notesContainer}>
           <MaterialIcons name="notes" size={16} color="#666" />
-          <Text style={styles.notesText}>{booking.notes}</Text>
+          <Text style={styles.notesText}>{order.notes}</Text>
         </View>
       )}
-    </TouchableOpacity>
+
+      <View style={styles.actionButtons}>
+        {order.status === 'pending' && (
+          <>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: STATUS_COLORS.confirmed }]}
+              onPress={() => handleStatusUpdate(order.id, 'confirmed')}
+            >
+              <MaterialIcons name="check" size={20} color="white" />
+              <Text style={styles.actionButtonText}>Confirm</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: STATUS_COLORS.cancelled }]}
+              onPress={() => handleStatusUpdate(order.id, 'cancelled')}
+            >
+              <MaterialIcons name="close" size={20} color="white" />
+              <Text style={styles.actionButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        {order.status === 'confirmed' && (
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: STATUS_COLORS.completed }]}
+            onPress={() => handleStatusUpdate(order.id, 'completed')}
+          >
+            <MaterialIcons name="done-all" size={20} color="white" />
+            <Text style={styles.actionButtonText}>Mark Complete</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
   );
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6B4EFF" />
-        <Text style={styles.loadingText}>Loading your bookings...</Text>
+        <Text style={styles.loadingText}>Loading orders...</Text>
       </View>
     );
   }
@@ -176,20 +194,14 @@ export default function BookingStatusScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.title}>My Bookings</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => router.push('/confirm-booking')}
-        >
-          <MaterialIcons name="add" size={24} color="white" />
-        </TouchableOpacity>
+        <Text style={styles.title}>Orders Management</Text>
       </View>
 
       <View style={styles.searchContainer}>
         <MaterialIcons name="search" size={24} color="#666" />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search bookings..."
+          placeholder="Search orders..."
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -197,23 +209,14 @@ export default function BookingStatusScreen() {
 
       {renderStatusFilter()}
 
-      {bookings.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <MaterialIcons name="event-busy" size={64} color="#ccc" />
-          <Text style={styles.emptyText}>No bookings found</Text>
-          <Text style={styles.emptySubtext}>Your booking history will appear here</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredBookings}
-          renderItem={renderBookingItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        />
-      )}
+      <FlatList
+        data={filteredOrders}
+        renderItem={renderOrderItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContainer}
+        onRefresh={fetchOrders}
+        refreshing={refreshing}
+      />
     </View>
   );
 }
@@ -225,7 +228,6 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
     backgroundColor: 'white',
@@ -233,20 +235,12 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e0e0e0',
   },
   backButton: {
-    padding: 4,
+    marginRight: 16,
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-  },
-  addButton: {
-    backgroundColor: '#6B4EFF',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -289,7 +283,7 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: 16,
   },
-  bookingCard: {
+  orderCard: {
     backgroundColor: 'white',
     borderRadius: 12,
     padding: 16,
@@ -306,7 +300,7 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  bookingHeader: {
+  orderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
@@ -317,7 +311,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
   },
-  serviceName: {
+  customerName: {
     fontSize: 14,
     color: '#666',
     marginTop: 4,
@@ -335,7 +329,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 4,
   },
-  bookingDetails: {
+  orderDetails: {
     marginBottom: 12,
   },
   detailRow: {
@@ -361,6 +355,28 @@ const styles = StyleSheet.create({
     color: '#666',
     flex: 1,
   },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginLeft: 8,
+  },
+  actionButtonText: {
+    color: 'white',
+    marginLeft: 4,
+    fontSize: 14,
+    fontWeight: '500',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -371,21 +387,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#666',
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
-  },
-}); 
+});
